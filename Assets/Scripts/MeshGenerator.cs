@@ -4,26 +4,37 @@ using UnityEngine;
 
 public class MeshGenerator : MonoBehaviour
 {
-    //TODO: Material picker, each submesh in mesh can only exist in 1 material. Use this.
+    //TODO: Material picker == EZ, each submesh in mesh can only exist in 1 material. Use this.
+    //TODO: split script into seperate files. e.g. mesh from matrix, material maker, matrix generator.
+    //Find the flippin triangle/mesh bug so that the matrix does display properly PLZ!
     
     Mesh mesh; //The to be rendered mesh
     private int verticecount;
     public float floor_size;
     public int floor_matrix_width;
     public int floor_matrix_height;
+    private int[,] matrix;
 
     // Start is called before the first frame update
     void Start()
     {
         mesh = new Mesh();
 
-        int[,] matrix = RandomFloorMatrix(floor_matrix_width, floor_matrix_height);
+        matrix = RandomFloorMatrix(floor_matrix_width, floor_matrix_height);
+
         MatrixLogger(matrix); //preview in debugger
-       // Vector3[] verts = MatrixToVertices(matrix);
-       // int[] triangles = Trianglie();
+        Vector3[] verts = MatrixToVertices(matrix);
+        Debug.Log("verts generated succesfully");
+        int[] triangles = Trianglie();
+        Debug.Log("triangles generated succesfully");
+        ClearMesh();
+        UpdateMesh(verts, triangles, 0); //submesh ("material" index 0)
+        Debug.Log("Mesh updated succesfully");
+        GetComponent<MeshFilter>().sharedMesh = mesh;
     }
 
     //Hmm Random floor made from.. squares
+    //----Matrix generation part
 
     int[,] RandomFloorMatrix(int x, int y)
     {
@@ -235,41 +246,53 @@ public class MeshGenerator : MonoBehaviour
         }
     }
 
+    //----meshing part
     Vector3[] MatrixToVertices(int[,] matrix)
     {
-        Vector3[] verts= new Vector3[matrix.GetLength(0)*matrix.GetLength(1)]; //bad math!
-
+        Vector3[] verts= new Vector3[matrix.GetLength(0)*matrix.GetLength(1)*10]; //bad math!
         int k = 0; // vertice counter                                                                                                     
         for (int i=0; i < matrix.GetLength(0); i++) {
             for (int j=0; j< matrix.GetLength(1); j++)
-            {
-                if (matrix[i, j] == 1) {
-                    verts[k] = new Vector3(floor_matrix_width * i, 0, floor_matrix_height * j); //bottom left
+            {   
+                if (matrix[i, j] == 1) { //for improving one day... sigh.. don't duplicate vertices..
+                    verts[k] = new Vector3(floor_size * i, 0, floor_size * j); //bottom left 0
                     k++;
-                    verts[k] = new Vector3(floor_matrix_width * (i + 1), 0, floor_matrix_height * j); //bottom right
+                    verts[k] = new Vector3(floor_size * i, 0, floor_size * (j + 1)); //top left 1
                     k++;
-                    verts[k] = new Vector3(floor_matrix_width * (i + 1), 0, floor_matrix_height * (j + 1)); //top right
+                    verts[k] = new Vector3(floor_size * (i + 1), 0, floor_size * j); //bottom right 2 
                     k++;
-                    new Vector3(floor_matrix_width * i, 0, floor_matrix_height * (j + 1)); //top left
+                    verts[k] = new Vector3(floor_size * (i + 1), 0, floor_size * (j + 1)); //top right 3
                     k++;
+                   //should give 4 vertices per matrix floor
                 }
             }
         }
 
+        Debug.Log(verts);
         verticecount = k; //ugly code;
-
         return verts;
     }
 
-    int[] Trianglie()
+    int[] Trianglie() //Something more buggy in here, some triangles are flipped upside down, probably wrong order or something stoopid.
     {
-        int[] tria = new int[verticecount];
+        int[] tria = new int[verticecount*6];
+        int count=0;
 
-        for (int i=0; i < verticecount; i++)
-        {
-          //  tria[i] = new int(i, i + 1, i + 2);
+        for (int i = 0; i < verticecount / 4; i = i++) // quad is 4 vertices and exists of //2 triangles clockwise so 2*3=6 points in the triangles list
+         {
+             tria[count] = count;            //0 BL 4  //first triangle
+             tria[count + 1] = count + 1;    //1 TL 5
+             tria[count + 2] = count + 2;    //2 BR 6
+
+             tria[count + 3] = count + 1;    //1 TL 5  //second triangle
+             tria[count + 4] = count + 3;    //3 TR 7
+             tria[count + 5] = count + 2;    //2 BR 6
+                      
+             count = count + 4;
+                i++; // <--- yes you might think why.. well flippin Unity bug. thats why. It will not i++ 
+            //when you dont add this here. I dont know why but i went crazy. it just starts doing all the 
+            //code without i endlessly. Wot de fuk
         }
-
         return tria;
     }
 
