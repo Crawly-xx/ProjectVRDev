@@ -10,10 +10,13 @@ public class MeshGenerator : MonoBehaviour
     
     Mesh mesh; //The to be rendered mesh
     private int verticecount;
+    private int verticecount2;
     public float floor_size;
     public int floor_matrix_width;
     public int floor_matrix_height;
     private int[,] matrix;
+
+    private Vector3[] testvertices;
 
     // Start is called before the first frame update
     void Start()
@@ -21,16 +24,25 @@ public class MeshGenerator : MonoBehaviour
         mesh = new Mesh();
 
         matrix = RandomFloorMatrix(floor_matrix_width, floor_matrix_height);
+       // MatrixLogger(matrix); //preview in debugger
 
-        MatrixLogger(matrix); //preview in debugger
         Vector3[] verts = MatrixToVertices(matrix);
-        Debug.Log("verts generated succesfully");
-        int[] triangles = Trianglie();
-        Debug.Log("triangles generated succesfully");
+
+        //Draw testgrid 
+        testvertices = verts;
+ //       foreach (Vector3 Vec in verts)
+   //     {
+      //      Debug.Log("Verts" + Vec);
+        //}
+        
         ClearMesh();
-        UpdateMesh(verts, triangles, 0); //submesh ("material" index 0)
-        Debug.Log("Mesh updated succesfully");
+        Vector3[] vertices = CenterToFloor(verts);
+        int[] triangles = Trianglie();
+
+        UpdateMesh(vertices, triangles, FloorNormals(verticecount2), 0); //submesh ("material" index 0)
+
         GetComponent<MeshFilter>().sharedMesh = mesh;
+        GetComponent<MeshCollider>().sharedMesh = mesh;
     }
 
     //Hmm Random floor made from.. squares
@@ -148,7 +160,7 @@ public class MeshGenerator : MonoBehaviour
                 randoi = (int)(floptions.Count * randof);
                 
                 //no more options left quit the loop.
-                if (floptions.Count == 0) { Debug.Log("no more floptions, matrix 100% complete"); break; }
+                if (floptions.Count == 0) { break; }
                 
                 
                 //make the tile a floor and the surrounding non floor tiles "walls" aka non-floorable area.
@@ -247,59 +259,96 @@ public class MeshGenerator : MonoBehaviour
     }
 
     //----meshing part
+
+        //returns Vectors of the Centers of the Floor Matrix
     Vector3[] MatrixToVertices(int[,] matrix)
     {
-        Vector3[] verts= new Vector3[matrix.GetLength(0)*matrix.GetLength(1)*10]; //bad math!
+        Vector3[] verts= new Vector3[matrix.GetLength(0)*matrix.GetLength(1)];
         int k = 0; // vertice counter                                                                                                     
         for (int i=0; i < matrix.GetLength(0); i++) {
             for (int j=0; j< matrix.GetLength(1); j++)
             {   
-                if (matrix[i, j] == 1) { //for improving one day... sigh.. don't duplicate vertices..
-                    verts[k] = new Vector3(floor_size * i, 0, floor_size * j); //bottom left 0
+                if (matrix[i, j] == 1) {
+                    verts[k] = new Vector3(floor_size*i + floor_size / 2 , 0, floor_size*j + floor_size / 2);
                     k++;
-                    verts[k] = new Vector3(floor_size * i, 0, floor_size * (j + 1)); //top left 1
-                    k++;
-                    verts[k] = new Vector3(floor_size * (i + 1), 0, floor_size * j); //bottom right 2 
-                    k++;
-                    verts[k] = new Vector3(floor_size * (i + 1), 0, floor_size * (j + 1)); //top right 3
-                    k++;
-                   //should give 4 vertices per matrix floor
                 }
             }
         }
-
-        Debug.Log(verts);
-        verticecount = k; //ugly code;
+        verticecount = k-1;
         return verts;
     }
 
-    int[] Trianglie() //Something more buggy in here, some triangles are flipped upside down, probably wrong order or something stoopid.
+    Vector3[] CenterToFloor(Vector3[] verts)
     {
-        int[] tria = new int[verticecount*6];
+        Vector3[] floorvertices = new Vector3[verts.Length * 4];
+        int k = 0;
+        foreach (Vector3 Vec in verts)
+        {
+            floorvertices[k] = Vec + new Vector3(-floor_size / 2, 0 , -floor_size / 2); //Bottom Left
+            k++;
+            
+            floorvertices[k] = Vec + new Vector3(-floor_size / 2, 0, floor_size / 2); //Top Left
+            k++;
+
+            floorvertices[k] = Vec + new Vector3(floor_size / 2, 0, -floor_size / 2); //Bottom Right
+            k++;
+
+            floorvertices[k] = Vec + new Vector3(floor_size / 2, 0, floor_size / 2); //Top Right
+            k++;
+        }
+        verticecount2 = k;
+        return floorvertices;
+    }
+
+    int[] Trianglie() //Something more buggy in here
+    {
+        int[] tria = new int[verticecount2*6];
         int count=0;
-
-        for (int i = 0; i < verticecount / 4; i = i++) // quad is 4 vertices and exists of //2 triangles clockwise so 2*3=6 points in the triangles list
+        int count2 = 0;
+        for (int i = 0; i < verticecount2 / 4; i = i++) // quad is 4 vertices and exists of //2 triangles clockwise so 2*3=6 points in the triangles list
          {
-             tria[count] = count;            //0 BL 4  //first triangle
-             tria[count + 1] = count + 1;    //1 TL 5
-             tria[count + 2] = count + 2;    //2 BR 6
+             tria[count2] = count;            //0 BL 4  //first triangle
+             tria[count2 + 1] = count + 1;    //1 TL 5
+             tria[count2 + 2] = count + 2;    //2 BR 6
 
-             tria[count + 3] = count + 1;    //1 TL 5  //second triangle
-             tria[count + 4] = count + 3;    //3 TR 7
-             tria[count + 5] = count + 2;    //2 BR 6
-                      
-             count = count + 4;
+             tria[count2 + 3] = count + 1;    //1 TL 5  //second triangle
+             tria[count2 + 4] = count + 3;    //3 TR 7
+             tria[count2 + 5] = count + 2;    //2 BR 6 
+
+            count2 += 6;
+             count += 4;
                 i++; // <--- yes you might think why.. well flippin Unity bug. thats why. It will not i++ 
             //when you dont add this here. I dont know why but i went crazy. it just starts doing all the 
             //code without i endlessly. Wot de fuk
         }
+
         return tria;
     }
 
-    void UpdateMesh(Vector3[] vertices,int[] triangles, int submesh)
+    Vector3[] FloorNormals(int length)
+    {
+        Vector3[] normalvector = new Vector3[length];
+        for (int i = 0; i < length; i++)
+        {
+            normalvector[i] = new Vector3(0, 1, 0);
+        }
+        return normalvector;
+    }
+
+    private void OnDrawGizmos()
+    {
+        for (int i = 0; i < verticecount; i++)
+        {
+            Gizmos.DrawSphere(testvertices[i], .1f);
+        }
+     
+    }
+
+    void UpdateMesh(Vector3[] vertices,int[] triangles, Vector3[] normals, int submesh)
     {
         mesh.SetVertices(vertices);
         mesh.SetTriangles(triangles,submesh);
+        mesh.SetNormals(normals);
     }
 
     void ClearMesh()
